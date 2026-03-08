@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Сюрприз для Алисы</title>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Nunito:wght@400;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    /* === БАЗОВЫЕ НАСТРОЙКИ === */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: 'Nunito', sans-serif;
+      background: linear-gradient(135deg, #fad0c4 0%, #ffd1ff 100%);
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: #4a4a4a;
+    }
+
+    /* Общий класс для всех экранов */
+    .screen {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: none; flex-direction: column; justify-content: center;
+      align-items: center; padding: 20px; text-align: center;
+      opacity: 0; transition: opacity 0.5s ease-in-out; overflow-y: auto;
+    }
+
+    .screen.active { display: flex; opacity: 1; }
+
+    .glass-container {
+      background: rgba(255, 255, 255, 0.55); border-radius: 24px; padding: 25px;
+      box-shadow: 0 8px 32px 0 rgba(157, 167, 209, 0.2); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.3); width: 90%; max-width: 400px;
+      margin-bottom: 20px; transition: transform 0.3s ease;
+    }
+
+    /* === КРУТЫЕ КНОПКИ === */
+    .btn {
+      background: linear-gradient(135deg, #ff758c 0%, #ff7eb3 100%);
+      border: none; border-radius: 30px; padding: 16px 35px;
+      font-size: 1.15rem; font-weight: 800; color: white; text-transform: uppercase;
+      letter-spacing: 1px; cursor: pointer;
+      box-shadow: 0 8px 20px rgba(255, 117, 140, 0.4), inset 0 -4px 0 rgba(0,0,0,0.15);
+      transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1); outline: none;
+      font-family: 'Nunito', sans-serif; width: 100%; max-width: 320px;
+      margin: 8px 0; z-index: 10; position: relative;
+      text-decoration: none;
+      display: flex; justify-content: center; align-items: center; text-align: center;
+    }
+    .btn:active { transform: translateY(4px); box-shadow: 0 3px 10px rgba(255, 117, 140, 0.4), inset 0 0px 0 rgba(0,0,0,0.15); }
+    .btn.disabled { pointer-events: none; }
+
+    .btn.correct { background: linear-gradient(135deg, #4cd137 0%, #44bd32 100%) !important; box-shadow: 0 8px 20px rgba(76, 209, 55, 0.4), inset 0 -4px 0 rgba(0,0,0,0.15) !important; }
+    .btn.wrong { background: linear-gradient(135deg, #ff4d4d 0%, #ff3838 100%) !important; box-shadow: 0 8px 20px rgba(255, 77, 77, 0.4), inset 0 -4px 0 rgba(0,0,0,0.15) !important; }
+
+    /* === ЭКРАН 1: ЗАГРУЗКА === */
+    .loader-box { padding: 5px; margin-top: 20px; }
+    .progress-bar { height: 12px; width: 0%; background: linear-gradient(90deg, #ff9a9e 0%, #ff6b9d 100%); border-radius: 20px; transition: width 0.1s linear; }
+    .loading-text { font-size: 1.1rem; font-weight: 700; margin-top: 20px; min-height: 50px; color: #ff5e89; }
+    .percentage { font-size: 2.2rem; font-weight: 800; color: #ff5e89; font-family: 'Caveat', cursive; }
+
+    /* === ЭКРАН 2: РОМА И ОБЛАЧКО === */
+    .roma-wrapper {
+      position: relative; transform: translateX(120vw); transition: transform 1s cubic-bezier(0.25, 1, 0.5, 1);
+      margin-bottom: 50px; margin-top: 80px; display: flex; justify-content: center; align-items: center; width: 100%; max-width: 350px;
+    }
+    .roma-wrapper.slide-in { transform: translateX(0); }
+    .roma-img { max-width: 90%; height: auto; max-height: 300px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); object-fit: contain; }
+
+    .speech-bubble {
+      position: absolute; top: -100px; left: 50%; transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 15px 20px;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15); width: 280px; opacity: 0; transition: opacity 0.5s ease; z-index: 2;
+    }
+    .speech-bubble::after {
+      content: ''; position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%);
+      border-width: 15px 15px 0; border-style: solid; border-color: rgba(255, 255, 255, 0.95) transparent transparent transparent;
+    }
+    .speech-bubble.visible { opacity: 1; }
+    .speech-text { font-size: 1.1rem; font-weight: 800; color: #ff5e89; text-align: center; line-height: 1.4; }
+
+    #uznatBtn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; margin-top: 20px;}
+    #uznatBtn.visible { opacity: 1; pointer-events: auto; }
+
+    /* === ЭКРАН 3: КОНВЕРТ ПРЕМИУМ КЛАССА === */
+    .envelope-container {
+      position: relative; width: 300px; height: 200px;
+      background: #d84a72; border-radius: 10px; box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+      perspective: 1200px; transition: opacity 0.6s ease, transform 0.6s ease; z-index: 5;
+    }
+    .envelope-container.fade-out { opacity: 0; transform: scale(0.8) translateY(-30px); pointer-events: none; }
+
+    .envelope-flap {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(to bottom, #ff8da1, #e96383);
+      clip-path: polygon(0 0, 100% 0, 50% 55%);
+      transform-origin: top; transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 6; border-radius: 10px 10px 0 0; backface-visibility: hidden;
+      filter: drop-shadow(0 4px 4px rgba(0,0,0,0.1));
+    }
+
+    .wax-seal {
+      position: absolute; bottom: -15px; left: 50%; transform: translateX(-50%) scale(1);
+      width: 45px; height: 45px; background: radial-gradient(circle at 30% 30%, #ff4b4b, #a50000);
+      border-radius: 50%; z-index: 7; box-shadow: 0 4px 8px rgba(0,0,0,0.3), inset 0 2px 4px rgba(255,255,255,0.3);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    }
+    .wax-seal::after { content: '❤️'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -45%); font-size: 18px; color: white; opacity: 0.9; }
+
+    .envelope-body {
+      position: absolute; bottom: 0; left: 0; width: 100%; height: 100%;
+      background: linear-gradient(to top, #ff7eb3, #ea6283); clip-path: polygon(0 0, 0% 100%, 100% 100%, 100% 0, 50% 55%);
+      z-index: 5; border-radius: 10px;
+    }
+
+    .envelope-container.break-seal .wax-seal { transform: translateX(-50%) scale(0); opacity: 0; }
+    .envelope-container.open .envelope-flap { transform: rotateX(180deg); }
+
+    .paper-sheet {
+      position: absolute; top: 50%; left: 50%; width: 90%; max-width: 380px;
+      background: #fffafa; border-radius: 15px; padding: 40px 25px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.2); transform: translate(-50%, 150vh);
+      transition: transform 0.8s cubic-bezier(0.25, 1, 0.5, 1);
+      z-index: 10; display: flex; flex-direction: column; align-items: center;
+    }
+    .paper-sheet.slide-up { transform: translate(-50%, -50%); }
+
+    .letter-text-content { font-size: 1.25rem; color: #444; line-height: 1.6; font-weight: 700; width: 100%; text-align: left; margin-bottom: 30px; }
+    #continueBtn { display: none; opacity: 0; transition: opacity 0.5s ease; width: 100%;}
+    #continueBtn.visible { opacity: 1; }
+    #openEnvelopeBtn { margin-top: 40px; transition: opacity 0.3s ease; }
+
+    /* === ЭКРАН 3.5: ПЕРЕД ТЕСТОМ (ДЫМ) === */
+    #screen-pre-quiz {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 15;
+    }
+    #screen-pre-quiz.active { display: flex; opacity: 1; }
+
+    .smoke-container {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      width: 100%; height: 100%; pointer-events: none; z-index: 1;
+    }
+    .smoke-particle {
+      position: absolute; top: 50%; left: 50%; width: 120px; height: 120px;
+      background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0) 70%);
+      border-radius: 50%; opacity: 0; filter: blur(15px); mix-blend-mode: overlay;
+    }
+    .smoke-particle.active { animation: smokeAnim 1.2s cubic-bezier(0.1, 0.8, 0.3, 1) forwards; }
+
+    @keyframes smokeAnim {
+      0% { transform: translate(-50%, -50%) scale(0.1); opacity: 0.9; }
+      50% { opacity: 1; }
+      100% { transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(4); opacity: 0; }
+    }
+
+    .roma-pop-wrapper {
+      position: relative; z-index: 2; margin-top: 60px;
+      transform: scale(0) translateY(50px); opacity: 0;
+      transition: transform 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s;
+    }
+    .roma-pop-wrapper.pop-out { transform: scale(1) translateY(0); opacity: 1; }
+
+    #pognaliBtn { opacity: 0; pointer-events: none; transition: opacity 0.5s ease; margin-top: 30px; z-index: 3;}
+    #pognaliBtn.visible { opacity: 1; pointer-events: auto; }
+
+    /* === ЭКРАН 4: ВИКТОРИНА === */
+    .quiz-box { display: flex; flex-direction: column; align-items: center; padding: 20px; }
+    .quiz-image { width: 100%; height: 200px; object-fit: cover; border-radius: 18px; margin-bottom: 15px; box-shadow: 0 6px 15px rgba(0,0,0,0.08); }
+    .quiz-progress { font-size: 1rem; color: #ff5e89; margin-bottom: 10px; font-weight: 800; letter-spacing: 1px; }
+    .quiz-question { font-size: 1.35rem; font-weight: 800; margin-bottom: 20px; color: #333; line-height: 1.3; }
+    .quiz-options { width: 100%; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+
+    /* === ЭКРАН 5: ПЕРЕД ПАЗЛОМ === */
+    .pre-puzzle-title { font-family: 'Caveat', cursive; font-size: 3.5rem; color: #ff5e89; margin-bottom: 20px; }
+    .pre-puzzle-text { font-size: 1.25rem; font-weight: 700; color: #4a4a4a; margin-bottom: 30px; line-height: 1.5; }
+
+    /* === ЭКРАН 6: ПАЗЛ === */
+    .puzzle-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; }
+    .puzzle-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(8, 1fr);
+      width: 90vw; max-width: 340px; aspect-ratio: 1 / 2; gap: 0;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.2); transition: border 0.5s ease, box-shadow 0.5s ease;
+      border: 4px solid transparent; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.2);
+    }
+    .puzzle-grid.solved { border-color: #4cd137; box-shadow: 0 0 25px rgba(76, 209, 55, 0.7); }
+    .puzzle-piece {
+      width: 100%; height: 100%; background-image: url('roman2.png');
+      background-size: 400% 800%; background-repeat: no-repeat;
+      transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1); cursor: pointer;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+    }
+    .puzzle-grid.solved .puzzle-piece { box-shadow: none; pointer-events: none; }
+    .puzzle-message { font-size: 1.3rem; font-weight: 800; color: #4cd137; margin-top: 25px; opacity: 0; transition: opacity 0.5s ease; text-align: center; min-height: 60px; }
+
+    #toPreGameBtn { display: none; opacity: 0; transition: opacity 0.5s ease; margin-top: 10px; }
+    #toPreGameBtn.visible { opacity: 1; }
+
+    /* === ВСПЛЫВАЮЩЕЕ ОКНО ДЛЯ ОШИБКИ ДЛЯ ТЕСТА === */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.5); display: flex; justify-content: center; align-items: center;
+      z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    .modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .modal-box { text-align: center; margin-bottom: 0; transform: scale(0.8); transition: transform 0.3s ease; }
+    .modal-overlay.active .modal-box { transform: scale(1); }
+    .modal-title { font-family: 'Caveat', cursive; font-size: 3rem; color: #ff6b6b; margin-bottom: 10px; }
+    .modal-text { font-size: 1.2rem; font-weight: 700; margin-bottom: 25px; line-height: 1.4; color: #4a4a4a; }
+
+    /* === ЭКРАН 7: ПЕРЕД ИГРОЙ С СЕРДЕЧКАМИ === */
+    .pre-game-title { font-family: 'Caveat', cursive; font-size: 3.5rem; color: #ff5e89; margin-bottom: 20px; }
+    .pre-game-text { font-size: 1.3rem; font-weight: 800; color: #4a4a4a; margin-bottom: 30px; line-height: 1.5; color: #ff5e89; }
+
+    /* === ЭКРАН 8: ИГРА ПОЙМАЙ СЕРДЕЧКИ === */
+    .game-header {
+      display: flex; justify-content: space-between; align-items: center;
+      width: 90vw; max-width: 350px; margin-bottom: 15px;
+      font-size: 1.2rem; font-weight: 800; color: #ff5e89;
+      background: rgba(255, 255, 255, 0.6); padding: 10px 20px;
+      border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    }
+    .game-area {
+      position: relative; width: 90vw; max-width: 350px; height: 60vh;
+      background: rgba(255, 255, 255, 0.3); border-radius: 20px;
+      border: 2px solid rgba(255, 255, 255, 0.8); overflow: hidden;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+    }
+
+    /* Фотка Ромы которая ездит сверху (БЕЗ РАМОК И КРУГОВ) */
+    .roman-dropper {
+      position: absolute;
+      top: 5px;
+      width: 55px; /* Ширина фотки */
+      height: auto;
+      max-height: 55px;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)); /* Легкая тень самой картинке */
+      z-index: 10;
+      transform: translateX(-50%);
+      transition: left 0.15s ease-out;
+      opacity: 0;
+    }
+    .roman-dropper.active {
+      opacity: 1;
+    }
+
+    .falling-heart {
+      position: absolute; top: 15px; font-size: 2.5rem;
+      cursor: pointer; user-select: none;
+      animation: fall linear forwards;
+      -webkit-tap-highlight-color: transparent;
+      z-index: 5;
+    }
+
+    @keyframes fall {
+      to { transform: translateY(calc(60vh + 30px)); }
+    }
+
+    .game-message {
+      font-size: 1.3rem; font-weight: 800; color: #4cd137; margin-top: 20px;
+      opacity: 0; transition: opacity 0.5s ease; text-align: center; min-height: 40px;
+    }
+
+    #toFinalBtn { display: none; opacity: 0; transition: opacity 0.5s ease; margin-top: 10px; }
+    #toFinalBtn.visible { opacity: 1; }
+
+    /* === ЭКРАН 9: ФИНАЛ (С КНОПКОЙ СКАЧАТЬ) === */
+    .final-title { font-family: 'Caveat', cursive; font-size: 4.5rem; color: #ff477e; margin-bottom: 20px; }
+    .final-text { font-size: 1.5rem; font-weight: 800; margin-bottom: 30px; color: #4a4a4a; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<div id="screen-loading" class="screen active">
+  <div class="percentage" id="percentage">0%</div>
+  <div class="glass-container loader-box">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+  <div class="loading-text" id="loading-text">Инициализация весенней магии...</div>
+</div>
+
+<div id="screen-roma" class="screen">
+  <div class="roma-wrapper" id="roma-wrapper">
+    <img src="roman.png" alt="Рома" class="roma-img" onerror="this.src='https://via.placeholder.com/300x400/ffd1ff/ff5e89?text=Фото+Ромы'">
+    <div class="speech-bubble" id="speech-bubble">
+      <span id="speech-bubble-text" class="speech-text" style="white-space: pre-wrap;"></span>
+    </div>
+  </div>
+  <button class="btn" id="uznatBtn">Узнать 🎁</button>
+</div>
+
+<div id="screen-envelope" class="screen">
+  <div class="envelope-container" id="envelope">
+    <div class="envelope-flap">
+      <div class="wax-seal"></div>
+    </div>
+    <div class="envelope-body"></div>
+  </div>
+  <button class="btn" id="openEnvelopeBtn">Открыть письмо ✉️</button>
+
+  <div class="paper-sheet" id="paper-sheet">
+    <div id="letter-text" class="letter-text-content" style="white-space: pre-wrap;"></div>
+    <button class="btn" id="continueBtn">Продолжить ➡️</button>
+  </div>
+</div>
+
+<div id="screen-pre-quiz" class="screen">
+  <div class="smoke-container" id="smoke-container"></div>
+  <div class="roma-pop-wrapper" id="roma-pop-wrapper">
+    <img src="roman1.png" alt="Рома" class="roma-img" onerror="this.src='https://via.placeholder.com/300x400/ffd1ff/ff5e89?text=Фото+Ромы+2'">
+    <div class="speech-bubble" id="speech-bubble2">
+      <span id="speech-bubble-text2" class="speech-text" style="white-space: pre-wrap;"></span>
+    </div>
+  </div>
+  <button class="btn" id="pognaliBtn">Погнали 🚀</button>
+</div>
+
+<div id="screen-quiz" class="screen">
+  <div class="glass-container quiz-box">
+    <div class="quiz-progress" id="quiz-progress">Вопрос 1 из 5</div>
+    <img src="" alt="Quiz Image" class="quiz-image" id="quiz-image">
+    <div class="quiz-question" id="quiz-question"></div>
+    <div class="quiz-options" id="quiz-options"></div>
+  </div>
+</div>
+
+<div id="screen-pre-puzzle" class="screen">
+  <div class="glass-container">
+    <h2 class="pre-puzzle-title">Отличная работа! 🎉</h2>
+    <p class="pre-puzzle-text">Ты успешно прошла тест. (ну почти) <br>Теперь тебе нужно собрать нашу совместную фоточку.</p>
+    <button class="btn" id="startPuzzleBtn">Собрать фото ➡️</button>
+  </div>
+</div>
+
+<div id="screen-puzzle" class="screen">
+  <div class="puzzle-wrapper">
+    <div class="puzzle-grid" id="puzzle-grid"></div>
+    <div class="puzzle-message" id="puzzle-message"></div>
+    <button class="btn" id="toPreGameBtn">Продолжить 💖</button>
+  </div>
+</div>
+
+<div id="screen-pre-game" class="screen">
+  <div class="glass-container">
+    <h2 class="pre-game-title">Отличная работа! 🎉</h2>
+    <p class="pre-game-text">А теперь ты должна поймать все мои сердечки которые я посылаю тебе!!!!</p>
+    <button class="btn" id="startGameBtn">Начать игру ➡️</button>
+  </div>
+</div>
+
+<div id="screen-game" class="screen">
+  <div class="game-header">
+    <div>Собрано: <span id="scoreValue">0</span>/50</div>
+    <div id="livesContainer">❤️❤️❤️</div>
+  </div>
+
+  <div class="game-area" id="gameArea">
+    <img src="roman.png" id="romanDropper" class="roman-dropper" alt="Рома" onerror="this.src='https://via.placeholder.com/55/ffd1ff/ff5e89?text=Р'">
+  </div>
+
+  <div class="game-message" id="game-message"></div>
+  <button class="btn" id="toFinalBtn">К финалу 💖</button>
+</div>
+
+<div id="screen-final" class="screen">
+  <h2 class="final-title">Умничка! 🎉</h2>
+  <p class="final-text">А вот и последний подарочек)</p>
+
+  <a href="certificate.pdf" download="certificate.pdf" class="btn" style="margin-top: 15px;">Скачать 🎁</a>
+</div>
+
+<div id="wrong-modal" class="modal-overlay">
+  <div class="glass-container modal-box">
+    <h3 class="modal-title">Упс! 🙈</h3>
+    <p class="modal-text">Это не правильно, но я сегодня очень добрый, так что у тебя есть еще один шанс ☺️</p>
+    <button class="btn" id="tryAgainBtn">Попробовать еще раз 💖</button>
+  </div>
+</div>
+
+<div id="game-over-modal" class="modal-overlay">
+  <div class="glass-container modal-box">
+    <h3 class="modal-title">Ой! 💔</h3>
+    <p class="modal-text">Жизни закончились. Но мы не сдаемся, пробуем еще раз!</p>
+    <button class="btn" id="restartGameBtn">Перезапустить 🔄</button>
+  </div>
+</div>
+
+<script>
+  /* ================= ДАННЫЕ ================= */
+  const loadingPhrases = [
+    { percent: 0, text: "Запускаем процесс поздравления..." },
+    { percent: 25, text: "Собираем данные про Алисочку..." },
+    { percent: 50, text: "Анализ уровня крутости..." },
+    { percent: 79, text: "Добавляем весеннее настроение и цветы..." },
+    { percent: 98, text: "Почти готово! Приготовься улыбаться..." }
+  ];
+
+  const romaText = "Привет Алиса это я Рома, узнала?\nУ меня есть для тебя подарочек)";
+  const congratsText = "Дорогая Алиса) 🌸\n" +
+    "В этот прекрасный и волшебный день хочу тебе еще раз напомнить как сильно я тебя люблю и как ты мне дорога) 🥰 хочу чтобы в этот день ты сияла ярче чем всегда и радовала меня и всех своей прекрасной улыбкой. 😀\n" +
+    "Ты невероятна крошка ✨✨✨";
+  const romaText2 = "Такссссс… А теперь ты пройдешь супер крутецкий тестик и мы узнаем насколько ты знаешь праздник 8 марта.";
+
+  const quizData = [
+    {
+      question: "Какой цветок чаще всего дарят на 8 Марта во многих странах бывшего СССР?",
+      image: "https://images.unsplash.com/photo-1526047932273-341f2a7631f9?q=80&w=600&auto=format&fit=crop",
+      options: ["Розы", "Тюльпаны", "Орхидеи", "Лилии"],
+      correct: 1
+    },
+    {
+      question: "Почему изначально создавался Международный женский день?",
+      image: "https://images.unsplash.com/photo-1541872703-74c5e44368f9?q=80&w=600&auto=format&fit=crop",
+      options: [
+        "Для празднования весны",
+        "Для борьбы за права женщин и равную оплату труда",
+        "Как день матерей",
+        "Как религиозный праздник"
+      ],
+      correct: 1
+    },
+    {
+      question: "Какое историческое событие в России связано с датой 8 марта (по новому стилю)?",
+      image: "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?q=80&w=600&auto=format&fit=crop",
+      options: [
+        "Начало Февральской революции 1917 года",
+        "Открытие первого университета для женщин",
+        "Принятие первой конституции",
+        "Подписание мирного договора"
+      ],
+      correct: 0
+    },
+    { question: "Какой цвет, символизирующий справедливость и достоинство, является одним из официальных цветов 8 Марта?", image: "https://images.unsplash.com/photo-1511976285953-004768418343?q=80&w=600&auto=format&fit=crop", options: ["Красный", "Синий", "Фиолетовый", "Желтый"], correct: 2 },
+    { question: "В какой стране впервые прошел Национальный женский день (в 1909 году)?", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?q=80&w=600&auto=format&fit=crop", options: ["США", "Великобритания", "Франция", "Германия"], correct: 0 },
+    { question: "Символом 8 Марта в Италии стала мимоза. А почему именно она?", image: "https://images.unsplash.com/photo-1615653051968-69c2b3e43e76?q=80&w=600&auto=format&fit=crop", options: ["Она вкусно пахнет", "Это самый дорогой цветок", "Цветет ранней весной и недорогая", "Так решил мэр Рима"], correct: 2 },
+    {
+      question: "Сколько месяцев мы встречаемся?",
+      image: "https://images.unsplash.com/photo-1516589091380-5d8e87df6999?q=80&w=600&auto=format&fit=crop",
+      options: ["7 месяцев", "8 месяцев", "9 месяцев", "7 с половиной месяца"],
+      correct: 1
+    },
+    { question: "Что тебе обязательно нужно сделать в этот праздник?", image: "https://www.cloudninehair.com/cdn/shop/files/Full_width_image_-_1028_x_524.png?v=1739273260", options: ["Помыть всю посуду", "Сдать годовой отчет", "Пропылесосить Пушинку", "Улыбаться и сиять"], correct: 3 },
+    { question: "Самый сложный вопрос: Какая ты сегодня?", image: "https://media.istockphoto.com/id/1922703877/es/foto/adolescente-de-la-generaci%C3%B3n-z-posa-de-cuerpo-completo-hacia-la-c%C3%A1mara-mostrando-actitud.jpg?s=612x612&w=0&k=20&c=rkBGvLVa912r87RgKacP5tKhRfrJfizM0dyd4ZbWBpA=", options: ["Обычная", "Не выспавшаяся", "Самая красивая и восхитительная", "Уставшая"], correct: 2 }
+  ];
+
+  /* ================= ЭЛЕМЕНТЫ DOM ================= */
+  const screenLoading = document.getElementById('screen-loading');
+  const screenRoma = document.getElementById('screen-roma');
+  const screenEnvelope = document.getElementById('screen-envelope');
+  const screenPreQuiz = document.getElementById('screen-pre-quiz');
+  const screenQuiz = document.getElementById('screen-quiz');
+  const screenPrePuzzle = document.getElementById('screen-pre-puzzle');
+  const screenPuzzle = document.getElementById('screen-puzzle');
+  const screenPreGame = document.getElementById('screen-pre-game');
+  const screenGame = document.getElementById('screen-game');
+  const screenFinal = document.getElementById('screen-final');
+
+  const wrongModal = document.getElementById('wrong-modal');
+  const gameOverModal = document.getElementById('game-over-modal');
+  const tryAgainBtn = document.getElementById('tryAgainBtn');
+  const restartGameBtn = document.getElementById('restartGameBtn');
+
+  /* ================= ФУНКЦИИ УТИЛИТ ================= */
+  function changeScreen(currentScreen, nextScreen) {
+    currentScreen.style.opacity = '0';
+    setTimeout(() => {
+      currentScreen.classList.remove('active');
+      nextScreen.classList.add('active');
+      setTimeout(() => { nextScreen.style.opacity = '1'; }, 50);
+    }, 500);
+  }
+
+  function typeTextLetterByLetter(element, text, speed, callback) {
+    element.innerHTML = ''; let i = 0;
+    function type() {
+      if (i < text.length) {
+        element.innerHTML += text.charAt(i); i++; setTimeout(type, speed);
+      } else if(callback) callback();
+    }
+    type();
+  }
+
+  /* ================= ЛОГИКА ЗАГРУЗКИ ================= */
+  let progress = 0;
+  quizData.forEach(data => { const img = new Image(); img.src = data.image; });
+  new Image().src = "roman.png"; new Image().src = "roman1.png"; new Image().src = "roman2.png";
+
+  const loadingInterval = setInterval(() => {
+    progress += 1;
+    document.getElementById('progress-bar').style.width = progress + '%';
+    document.getElementById('percentage').innerText = progress + '%';
+    const currentPhrase = loadingPhrases.slice().reverse().find(p => progress >= p.percent);
+    if (currentPhrase) document.getElementById('loading-text').innerText = currentPhrase.text;
+
+    if (progress >= 100) {
+      clearInterval(loadingInterval);
+      setTimeout(() => {
+        changeScreen(screenLoading, screenRoma);
+        setTimeout(() => {
+          document.getElementById('roma-wrapper').classList.add('slide-in');
+          setTimeout(() => {
+            document.getElementById('speech-bubble').classList.add('visible');
+            typeTextLetterByLetter(document.getElementById('speech-bubble-text'), romaText, 50, () => {
+              document.getElementById('uznatBtn').classList.add('visible');
+            });
+          }, 1000);
+        }, 550);
+      }, 600);
+    }
+  }, 65);
+
+  /* ================= ЛОГИКА РОМЫ 1 -> КОНВЕРТ ================= */
+  document.getElementById('uznatBtn').addEventListener('click', () => {
+    changeScreen(screenRoma, screenEnvelope);
+  });
+
+  /* ================= ЛОГИКА КОНВЕРТА ================= */
+  const openEnvelopeBtn = document.getElementById('openEnvelopeBtn');
+  const continueBtn = document.getElementById('continueBtn');
+  const envelope = document.getElementById('envelope');
+  const paperSheet = document.getElementById('paper-sheet');
+
+  openEnvelopeBtn.addEventListener('click', () => {
+    openEnvelopeBtn.style.opacity = '0';
+    openEnvelopeBtn.style.pointerEvents = 'none';
+    envelope.classList.add('break-seal');
+
+    setTimeout(() => {
+      envelope.classList.add('open');
+      setTimeout(() => {
+        envelope.classList.add('fade-out');
+        setTimeout(() => {
+          envelope.style.display = 'none';
+          openEnvelopeBtn.style.display = 'none';
+          paperSheet.classList.add('slide-up');
+
+          setTimeout(() => {
+            confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#ff9a9e', '#ffffff', '#ff477e'] });
+            typeTextLetterByLetter(document.getElementById('letter-text'), congratsText, 45, () => {
+              continueBtn.style.display = 'block';
+              setTimeout(() => continueBtn.classList.add('visible'), 50);
+            });
+          }, 800);
+        }, 600);
+      }, 600);
+    }, 300);
+  });
+
+  /* ================= ЛОГИКА ЭКРАНА С ДЫМОМ ================= */
+  const pognaliBtn = document.getElementById('pognaliBtn');
+
+  function triggerSmokeExplosion() {
+    const container = document.getElementById('smoke-container');
+    container.innerHTML = '';
+    for(let i = 0; i < 8; i++) {
+      const particle = document.createElement('div');
+      particle.classList.add('smoke-particle');
+      const tx = (Math.random() - 0.5) * 400 + 'px';
+      const ty = (Math.random() - 0.5) * 400 + 'px';
+      particle.style.setProperty('--tx', tx);
+      particle.style.setProperty('--ty', ty);
+      container.appendChild(particle);
+      setTimeout(() => particle.classList.add('active'), 50);
+    }
+  }
+
+  continueBtn.addEventListener('click', () => {
+    changeScreen(screenEnvelope, screenPreQuiz);
+    setTimeout(() => {
+      triggerSmokeExplosion();
+      setTimeout(() => {
+        document.getElementById('roma-pop-wrapper').classList.add('pop-out');
+        setTimeout(() => {
+          document.getElementById('speech-bubble2').classList.add('visible');
+          typeTextLetterByLetter(document.getElementById('speech-bubble-text2'), romaText2, 45, () => {
+            pognaliBtn.classList.add('visible');
+          });
+        }, 700);
+      }, 300);
+    }, 600);
+  });
+
+  /* ================= ЛОГИКА ВИКТОРИНЫ ================= */
+  pognaliBtn.addEventListener('click', () => {
+    changeScreen(screenPreQuiz, screenQuiz);
+    setTimeout(loadQuestion, 500);
+  });
+
+  let currentQuestionIndex = 0;
+  const quizImage = document.getElementById('quiz-image');
+  const quizQuestionEl = document.getElementById('quiz-question');
+  const quizOptionsEl = document.getElementById('quiz-options');
+  const quizProgressEl = document.getElementById('quiz-progress');
+
+  function loadQuestion() {
+    const currentQuizData = quizData[currentQuestionIndex];
+    quizProgressEl.innerText = `ВОПРОС ${currentQuestionIndex + 1} ИЗ ${quizData.length}`;
+    quizImage.style.opacity = 0;
+    quizImage.src = currentQuizData.image;
+    quizImage.onload = () => { quizImage.style.opacity = 1; quizImage.style.transition = 'opacity 0.5s ease'; }
+
+    quizQuestionEl.innerText = currentQuizData.question;
+    quizOptionsEl.innerHTML = '';
+
+    currentQuizData.options.forEach((option, index) => {
+      const button = document.createElement('button');
+      button.classList.add('btn');
+      button.innerText = option;
+      button.style.opacity = 0;
+      button.style.transform = 'translateY(10px)';
+      quizOptionsEl.appendChild(button);
+      setTimeout(() => { button.style.opacity = 1; button.style.transform = 'translateY(0)'; }, index * 100 + 300);
+
+      button.addEventListener('click', () => checkAnswer(index, button));
+    });
+  }
+
+  function checkAnswer(selectedIndex, selectedButton) {
+    const correctIndex = quizData[currentQuestionIndex].correct;
+    const allButtons = quizOptionsEl.querySelectorAll('.btn');
+
+    if (selectedIndex === correctIndex) {
+      allButtons.forEach(btn => btn.classList.add('disabled'));
+      selectedButton.classList.add('correct');
+      confetti({ particleCount: 40, spread: 60, origin: { y: 0.7 }, colors: ['#56d179', '#ffffff'] });
+
+      setTimeout(() => {
+        currentQuestionIndex++;
+        if (currentQuestionIndex < quizData.length) {
+          loadQuestion();
+        } else {
+          changeScreen(screenQuiz, screenPrePuzzle);
+        }
+      }, 1500);
+    } else {
+      selectedButton.classList.add('wrong');
+      setTimeout(() => { wrongModal.classList.add('active'); }, 300);
+    }
+  }
+
+  tryAgainBtn.addEventListener('click', () => {
+    wrongModal.classList.remove('active');
+    const allButtons = quizOptionsEl.querySelectorAll('.btn');
+    allButtons.forEach(btn => btn.classList.remove('wrong'));
+  });
+
+  /* ================= ЛОГИКА ПАЗЛА ================= */
+  const startPuzzleBtn = document.getElementById('startPuzzleBtn');
+  const puzzleGrid = document.getElementById('puzzle-grid');
+  const puzzleMessage = document.getElementById('puzzle-message');
+  const toPreGameBtn = document.getElementById('toPreGameBtn');
+  let puzzlePieces = [];
+
+  startPuzzleBtn.addEventListener('click', () => {
+    changeScreen(screenPrePuzzle, screenPuzzle);
+    setTimeout(initPuzzle, 500);
+  });
+
+
+  function initPuzzle() {
+    puzzleGrid.innerHTML = '';
+    puzzlePieces = [];
+    puzzleGrid.classList.remove('solved');
+    puzzleMessage.style.opacity = 0;
+    toPreGameBtn.style.display = 'none';
+    toPreGameBtn.classList.remove('visible');
+
+    const columns = 4;
+    const rows = 8;
+    const randomRotations = [0, 90, 180, 270];
+
+    for (let i = 0; i < 32; i++) {
+      let piece = document.createElement('div');
+      piece.classList.add('puzzle-piece');
+
+      let col = i % columns;
+      let row = Math.floor(i / columns);
+
+      let bgX = (col / (columns - 1)) * 100;
+      let bgY = (row / (rows - 1)) * 100;
+      piece.style.backgroundPosition = `${bgX}% ${bgY}%`;
+
+      let initialRot = randomRotations[Math.floor(Math.random() * randomRotations.length)];
+      if (i === 0 && initialRot === 0) initialRot = 90;
+
+      piece.dataset.rotation = initialRot;
+      piece.style.transform = `rotate(${initialRot}deg)`;
+
+      piece.addEventListener('click', () => {
+        if (puzzleGrid.classList.contains('solved')) return;
+
+        let currentRot = parseInt(piece.dataset.rotation);
+        currentRot += 90;
+        piece.dataset.rotation = currentRot;
+        piece.style.transform = `rotate(${currentRot}deg)`;
+
+        checkPuzzleWin();
+      });
+
+      puzzleGrid.appendChild(piece);
+      puzzlePieces.push(piece);
+    }
+  }
+
+  function checkPuzzleWin() {
+    let isWin = puzzlePieces.every(p => parseInt(p.dataset.rotation) % 360 === 0);
+
+    if (isWin) {
+      puzzleGrid.classList.add('solved');
+      puzzleMessage.innerText = "Молодец! Ты правильно собрала фотографию.";
+      puzzleMessage.style.opacity = 1;
+
+      toPreGameBtn.style.display = 'block';
+      setTimeout(() => toPreGameBtn.classList.add('visible'), 300);
+
+      setTimeout(() => {
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, colors: ['#4cd137', '#ffffff', '#ffeb3b'] });
+      }, 500);
+    }
+  }
+
+  toPreGameBtn.addEventListener('click', () => {
+    changeScreen(screenPuzzle, screenPreGame);
+  });
+
+  /* ================= ЛОГИКА ИГРЫ С УСКОРЕНИЕМ ================= */
+  const startGameBtn = document.getElementById('startGameBtn');
+  const toFinalBtn = document.getElementById('toFinalBtn');
+  const gameArea = document.getElementById('gameArea');
+  const scoreValue = document.getElementById('scoreValue');
+  const livesContainer = document.getElementById('livesContainer');
+  const gameMessage = document.getElementById('game-message');
+  const romanDropper = document.getElementById('romanDropper');
+
+  let score = 0;
+  let lives = 3;
+  let gameTimeout;
+  let gameActive = false;
+
+  startGameBtn.addEventListener('click', () => {
+    changeScreen(screenPreGame, screenGame);
+    setTimeout(initGame, 500);
+  });
+
+
+  function initGame() {
+    score = 0;
+    lives = 3;
+    updateGameUI();
+
+    const hearts = document.querySelectorAll('.falling-heart');
+    hearts.forEach(h => h.remove());
+
+    gameMessage.style.opacity = 0;
+    toFinalBtn.style.display = 'none';
+    toFinalBtn.classList.remove('visible');
+    gameActive = true;
+    romanDropper.classList.add('active');
+
+    startGameLoop();
+  }
+
+  function startGameLoop() {
+    gameLoop();
+  }
+
+  function gameLoop() {
+    if (!gameActive) return;
+    spawnHeart();
+
+    // Динамическое ускорение: УСЛОЖНЕННАЯ ВЕРСИЯ
+    let currentSpawnDelay = Math.max(250, 600 - score * 10);
+    gameTimeout = setTimeout(gameLoop, currentSpawnDelay);
+  }
+
+  function endGameLoop() {
+    clearTimeout(gameTimeout);
+    gameActive = false;
+    romanDropper.classList.remove('active');
+    const hearts = document.querySelectorAll('.falling-heart');
+    hearts.forEach(h => h.remove());
+  }
+
+  function spawnHeart() {
+    if (!gameActive) return;
+
+    const heart = document.createElement('div');
+    heart.classList.add('falling-heart');
+    heart.innerText = '❤️';
+
+    const leftPos = 10 + Math.random() * 80;
+    heart.style.left = leftPos + '%';
+
+    romanDropper.style.left = leftPos + '%';
+
+    // Ускорение скорости падения: УСЛОЖНЕННАЯ ВЕРСИЯ
+    const baseDuration = Math.max(1.1, 2.4 - score * 0.04);
+    const randomExtra = Math.random() * Math.max(0.3, 1.0 - score * 0.02);
+    const duration = baseDuration + randomExtra;
+    heart.style.animationDuration = duration + 's';
+
+    heart.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!gameActive) return;
+
+      heart.remove();
+      score++;
+      updateGameUI();
+
+      const rect = gameArea.getBoundingClientRect();
+      const relativeX = (e.clientX - rect.left) / rect.width;
+      const relativeY = (e.clientY - rect.top) / rect.height;
+      confetti({ particleCount: 15, spread: 40, origin: { x: relativeX, y: relativeY }, colors: ['#ff477e', '#ffffff'] });
+
+      if (score >= 50) {
+        winGame();
+      }
+    });
+
+    heart.addEventListener('animationend', () => {
+      if (!gameActive) return;
+      heart.remove();
+      lives--;
+      updateGameUI();
+
+      if (lives <= 0) {
+        loseGame();
+      }
+    });
+
+    gameArea.appendChild(heart);
+  }
+
+  function updateGameUI() {
+    scoreValue.innerText = score;
+    let livesStr = '';
+    for(let i=0; i<lives; i++) livesStr += '❤️';
+    for(let i=lives; i<3; i++) livesStr += '🖤';
+    livesContainer.innerText = livesStr;
+  }
+
+  function winGame() {
+    endGameLoop();
+    gameMessage.innerText = "Ура! Ты собрала все 50 сердечек! 💖";
+    gameMessage.style.opacity = 1;
+
+    toFinalBtn.style.display = 'block';
+    setTimeout(() => toFinalBtn.classList.add('visible'), 300);
+
+    setTimeout(() => {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 }, colors: ['#ff477e', '#ffffff'] });
+    }, 500);
+  }
+
+  function loseGame() {
+    endGameLoop();
+    gameOverModal.classList.add('active');
+  }
+
+  restartGameBtn.addEventListener('click', () => {
+    gameOverModal.classList.remove('active');
+    initGame();
+  });
+
+  /* ================= ФИНАЛ ================= */
+  toFinalBtn.addEventListener('click', () => {
+    changeScreen(screenGame, screenFinal);
+    setTimeout(() => {
+      confetti({ particleCount: 300, spread: 150, origin: { y: 0.6 }, startVelocity: 45 });
+    }, 500);
+  });
+
+</script>
+</body>
+</html>
