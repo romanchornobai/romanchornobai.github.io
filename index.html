@@ -401,7 +401,7 @@
 <script>
   /* ================= ДАННЫЕ ================= */
   const loadingPhrases = [
-    { percent: 0, text: "Запускаем процесс поздравления..." },
+    { percent: 0, text: "Запускаем процесс поздравления.." },
     { percent: 25, text: "Собираем данные про Алисочку..." },
     { percent: 50, text: "Анализ уровня крутости..." },
     { percent: 79, text: "Добавляем весеннее настроение и цветы..." },
@@ -826,7 +826,7 @@
       const relativeY = (e.clientY - rect.top) / rect.height;
       confetti({ particleCount: 15, spread: 40, origin: { x: relativeX, y: relativeY }, colors: ['#ff477e', '#ffffff'] });
 
-      if (score >= 50) {
+      if (score >= 37) {
         winGame();
       }
     });
